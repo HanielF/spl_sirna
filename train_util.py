@@ -37,7 +37,8 @@ def train(model, iterator, optimizer, criterion, device='cpu'):
         x, y = x.to(DEVICE), y.to(DEVICE)
         # 在BP之前需要zero_grad，将之前的梯度置零
         optimizer.zero_grad()
-        predictions = model(x).view(-1, 1)
+        predictions, _ = model(x)
+        predictions = predictions.view(-1, 1)
         # 计算loss并且backward
         loss = criterion(predictions.flatten().to(DEVICE), y.to(DEVICE))
         loss.backward()
@@ -46,7 +47,7 @@ def train(model, iterator, optimizer, criterion, device='cpu'):
     return epoch_loss / len(iterator)
 
 
-def evaluate(model, iterator, criterion, device='cpu', pcc=False, acc=False):
+def evaluate(model, iterator, criterion, device='cpu'):
     '''
     Desc：
         测试模型的函数，返回验证集的平均epoch误差
@@ -56,7 +57,7 @@ def evaluate(model, iterator, criterion, device='cpu', pcc=False, acc=False):
         criterion  --  损失函数
         device  --  运行的设备，可以是'cpu'或'cuda'
     Returns：
-        res  --  保存loss和可选的pcc，acc，调用时，使用loss、pcc和acc分别赋值
+        res  --  保存loss和可选pred
     '''
     # 设置model状态为evaluate
     model.eval()
@@ -67,27 +68,14 @@ def evaluate(model, iterator, criterion, device='cpu', pcc=False, acc=False):
     with torch.no_grad():
         for i, (x, y) in enumerate(iterator):
             x, y = x.to(DEVICE), y.to(DEVICE)
-            predictions = model(x)
+            predictions, _ = model(x)
 
             # 计算Loss
             loss = criterion(predictions.flatten().to(DEVICE), y.to(DEVICE))
             epoch_loss += loss.item()
 
-            # 计算相关系数PCC
-            tmp_r, _ = scipy.stats.pearsonr(y.view(-1).cpu().numpy(), predictions.view(-1).cpu().numpy())
-            epoch_pcc += tmp_r
-
-            # 计算准确度ACC
-            tmp_acc = np.sum(predictions.view(-1).cpu().numpy() == y.view(-1).cpu().numpy())*1.0/predictions.shape[0]
-            epoch_acc += tmp_acc
-
     # 返回对应数据
-    res = [epoch_loss / len(iterator)]
-    if pcc:
-        res.append(epoch_pcc / len(iterator))
-    if acc:
-        res.append(epoch_acc / len(iterator))
-    return res
+    return epoch_loss / len(iterator)
 
 
 def predict_samples(model, data=None):
@@ -115,25 +103,36 @@ def predict_samples(model, data=None):
     if type(data) in lst:
         res_x = torch.tensor(np.array(data)).long().to(DEVICE)
         res_freq = np.empty(0)
+        energies = []
 
         # batch_size设置为64，分batch预测
         for i in range(0, res_x.shape[0], 64):
             batch_x = res_x[i:i + 64, :]
-            batch_pre = model(batch_x)
+            batch_pre, energy = model(batch_x)
+
             if batch_pre.is_cuda:
                 batch_pre = batch_pre.cpu()
+                energy = energy.cpu()
+            energies.append(energy)
+
             batch_pre = batch_pre.data.numpy().flatten()
+            energy = energy.data.numpy()
             res_freq = np.concatenate((res_freq, batch_pre))
-        return res_freq
+        return res_freq, energies
     # 对DataLoader的处理
     elif type(data) == tud.DataLoader:
         pre = freq = np.empty(0)
+        energies = []
+
         for i, (x, y) in enumerate(data):
-            prediction = model(x)
+            prediction, energy = model(x)
             if prediction.is_cuda:
                 prediction = prediction.cpu()
+                energy = energy.cpu()
+
             prediction = prediction.data.numpy().flatten()
+            energies.append(energy.data.numpy())
             y = y.numpy().flatten()
             pre = np.concatenate((pre, prediction))
             freq = np.concatenate((freq, y))
-        return pre, freq
+        return pre, freq, energies

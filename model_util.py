@@ -12,10 +12,17 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 from spl_sirna.sirna_util import get_seq_motif, idx_to_seq
 
 USE_CUDA = torch.cuda.is_available()
 # DEVICE = torch.device('cuda' if USE_CUDA else 'cpu')
+
+SEED = 1234
+np.random.seed(1234)
+torch.manual_seed(1234)
+if USE_CUDA:
+    torch.cuda.manual_seed(1234)
 
 
 class Word2vecModel(nn.Module):
@@ -27,14 +34,10 @@ class Word2vecModel(nn.Module):
         self.embed_size = embed_size
 
         initrange = 0.5 / self.embed_size
-        self.out_embed = nn.Embedding(self.vocab_size,
-                                      self.embed_size,
-                                      sparse=False)
+        self.out_embed = nn.Embedding(self.vocab_size, self.embed_size, sparse=False)
         self.out_embed.weight.data.uniform_(-initrange, initrange)
 
-        self.in_embed = nn.Embedding(self.vocab_size,
-                                     self.embed_size,
-                                     sparse=False)
+        self.in_embed = nn.Embedding(self.vocab_size, self.embed_size, sparse=False)
         self.in_embed.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, input_labels, pos_labels, neg_labels):
@@ -48,14 +51,10 @@ class Word2vecModel(nn.Module):
 
         input_embedding = self.in_embed(input_labels)  # B * embed_size
         pos_embedding = self.out_embed(pos_labels)  # B * (2*C) * embed_size
-        neg_embedding = self.out_embed(
-            neg_labels)  # B * (2*C * K) * embed_size
+        neg_embedding = self.out_embed(neg_labels)  # B * (2*C * K) * embed_size
 
-        log_pos = torch.bmm(
-            pos_embedding, input_embedding.unsqueeze(2)).squeeze()  # B * (2*C)
-        log_neg = torch.bmm(
-            neg_embedding,
-            -input_embedding.unsqueeze(2)).squeeze()  # B * (2*C*K)
+        log_pos = torch.bmm(pos_embedding, input_embedding.unsqueeze(2)).squeeze()  # B * (2*C)
+        log_neg = torch.bmm(neg_embedding, -input_embedding.unsqueeze(2)).squeeze()  # B * (2*C*K)
 
         # 对loss平均处理
         log_pos = F.logsigmoid(log_pos).sum(1) / log_pos.shape[1]
@@ -81,7 +80,7 @@ class MultiMotifLSTMModel(nn.Module):
                  dropout=0,
                  avg_hidden=True,
                  motif=[1, 2, 3],
-                 loadvec =True,
+                 loadvec=True,
                  device='cpu'):
         '''
         Desc：
@@ -246,6 +245,170 @@ class MultiMotifLSTMModel(nn.Module):
         return hidden
 
 
+class AttentionModel(nn.Module):
+    def __init__(self, method, hidden_dim, bidirectional=False, device='cpu'):
+        '''
+        Desc：
+            初始化attention层
+        Args：
+            method: string  --  attention的方法，有general，concat和dot
+            hidden_dim: int, hidden_dim*num dirs  --  hidden的维度，应该是hidden_dim*num dirs
+            device  --  是否使用cuda
+        '''
+        super(AttentionModel, self).__init__()
+        self.method = method
+        self.hidden_dim = hidden_dim
+        if bidirectional:
+            self.hidden_dim = self.hidden_dim * 2
+        self.device = device
+
+        if self.method == 'general':
+            self.atten = nn.Linear(self.hidden_dim, self.hidden_dim)
+        elif self.method == 'concat':
+            self.atten = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
+            self.tanh = nn.Tanh()
+            self.other = nn.Parameter(torch.FloatTensor(1, self.hidden_dim))  # parameter会在反向传播时自动更新
+
+    def forward(self, hidden, encoder_outputs):
+        '''
+        Desc：
+            attention层的前向传播
+        Args：
+            hidden: (batch size, hidden_dim*num dir)  --  论文中decoder的上一个hidden，这里是最后一层的第20个hidden
+            encoder_outputs: (seq_len, batch_size, hidden_dim*num dir)  --  论文中encoder的output，这里是最后一层前19个output
+        Returns：
+            energy: (seq_len, batch_size)  --  返回每个hidden对应的权重
+        '''
+        batch_size, seq_len = encoder_outputs.shape[1], encoder_outputs.shape[0]
+        energy = Variable(torch.zeros(seq_len, batch_size)).to(self.device)  # (seq len, batch_size)
+        for i in range(seq_len):
+            energy[i] = self.score(hidden, encoder_outputs[i])
+        return F.softmax(energy, dim=0).transpose(0, 1).unsqueeze(1)  #(batch size, 1, seq len)
+
+    def score(self, hidden, encoder_output):
+        '''
+        Desc：
+            计算hidden和encoder outputs的energy分数
+        Args：
+            hidden: (batch size, hidden_dim*num dir)  --  decoder的hidden
+            encoder_output: (batch size, hiddendim*numdir)  --  encoder最后一层的每个output
+        Returns：
+            energy: (batch size, )   --  计算得到的分数
+        '''
+        if self.method == 'dot':
+            energy = torch.sum(hidden * encoder_output, axis=1)  # (batchsize,)
+        elif self.method == 'general':
+            energy = self.atten(encoder_output)  # (batch size, hidden_dim*numdir)
+            energy = torch.sum(hidden * energy, axis=1)
+        elif self.method == 'concat':
+            energy = self.tanh(self.atten(torch.cat((hidden, encoder_output), axis=1)))  # (batch size, hidden dim)
+            energy = torch.sum(energy * self.other, axis=1)
+        return energy  # (batch size, )
+
+
+class AttenLSTMModel(nn.Module):
+    def __init__(self,
+                 vocab_size,
+                 embedding_dim,
+                 hidden_dim,
+                 output_dim,
+                 n_layers=1,
+                 bidirectional=False,
+                 dropout=0,
+                 avg_hidden=True,
+                 vector_path=None,
+                 attention_method=None,
+                 save_energy=False,
+                 device='cpu'):
+        '''
+        Desc：
+            初始化单一输入LSTM模型，定义一些网络层级
+        Args：
+            vocab_size: int -- 5，即[A, G, U, C, T]
+            embedding_dim: int -- 词向量的维度
+            hidden_dim: int -- LSTM层hidden的维度
+            output_dim: int -- 输出的维度
+            n_layers: int -- LSTM的层数
+            bidirectional: bool -- LSTM是否双向
+            dropout: float -- drouput概率，使用在LSTM和Dropout层
+            avg_hidden: bool -- 是否将hidden的平均值作为结果输出，如果是False，则使用最后一个Hidden作为LSTM的输出
+        '''
+        super(AttenLSTMModel, self).__init__()
+        self.bidirectional = bidirectional
+        self.avg_hidden = avg_hidden
+        self.pre_output_dim = hidden_dim * 2 if self.bidirectional else hidden_dim
+        self.device = device
+
+        self.input_embed = nn.Embedding(vocab_size, embedding_dim)
+        if vector_path is not None:
+            vec_embed = np.load(vector_path)
+            self.input_embed.weight.data.copy_(torch.from_numpy(vec_embed))
+
+        self.attention_method = attention_method
+        self.attention = AttentionModel(attention_method, hidden_dim, self.bidirectional,
+                                        self.device)  # (seq len, batch size)
+        # self.energies = list()
+        self.save_energy = save_energy
+
+        self.lstm = nn.LSTM(embedding_dim,
+                            hidden_dim,
+                            num_layers=n_layers,
+                            batch_first=True,
+                            bidirectional=bidirectional,
+                            dropout=(dropout if n_layers > 1 else 0))
+        self.fc1 = nn.Linear(self.pre_output_dim, self.pre_output_dim)
+        self.bn = nn.BatchNorm1d(self.pre_output_dim)
+        self.leaky_relu = nn.LeakyReLU(0.1, inplace=True)
+        self.dropout = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(self.pre_output_dim, output_dim)
+
+    def forward(self, seq):
+        '''
+        Desc：
+            Forward pass
+        Args：
+            seq: tensor(batch_size, seq_size) -- 输入的序列
+        Returns：
+            output: tensor(batch_size, output_dim=1) -- Predicted value
+        '''
+        # embed_seq: [batch_size, seq_size, embed_size]
+        seq = seq.long().to(self.device)
+        embed_seq = self.dropout(self.input_embed(seq))
+        #lstm_output: [batch size, seq_len, hid dim * num directions]
+        #hidden, cell: [num layers * num directions, batch size, hidden_dim]
+        lstm_output, (hidden, cell) = self.lstm(embed_seq)
+
+        if self.avg_hidden:
+            hidden = torch.sum(lstm_output, 1) / lstm_output.size(1)
+        else:
+            if self.bidirectional:
+                hidden = torch.cat((hidden[-2, :, :], hidden[-1, :, :]), dim=1)
+            else:
+                # hidden = self.dropout(hidden[-1, :, :])
+                hidden = hidden[-1, :, :]
+
+        # hidden: [batch_size, hidden_dim * num_directions]
+        if self.attention_method is not None:
+            encoder_outputs = lstm_output.transpose(0, 1)  # [seq_len, batch_size, hidden_dim*num_dirs]
+            energy = self.attention(hidden, encoder_outputs)  # [batch_size, 1, seq_len]
+            # self.energies.append(energy)
+            # context: #[batch_size, hidden_dim*numdirs]=[batch_size, 1, seq_len] · [batch_size, seq_len, hidden_dim*numdirs]
+            context = energy.bmm(encoder_outputs.transpose(0, 1)).squeeze()
+        else:
+            context = hidden
+
+        # print('energy:\n{}'.format(energy[0]))
+        pre_output = self.leaky_relu(self.bn(self.fc1(context)))
+        pre_output = self.dropout(pre_output)
+        output = self.fc2(pre_output)
+        # return: [batch_size, output_dim]
+        if self.save_energy:
+            output = (output, energy)
+        else:
+            output = (output, output)
+        return output
+
+
 class EmbeddingLSTMModel(nn.Module):
     def __init__(self,
                  vocab_size,
@@ -256,6 +419,7 @@ class EmbeddingLSTMModel(nn.Module):
                  bidirectional=False,
                  dropout=0,
                  avg_hidden=True,
+                 vector_path=None,
                  device='cpu'):
         '''
         Desc：
@@ -277,6 +441,10 @@ class EmbeddingLSTMModel(nn.Module):
         self.device = device
 
         self.input_embed = nn.Embedding(vocab_size, embedding_dim)
+        if vector_path is not None:
+            vec_embed = np.load(vector_path)
+            self.input_embed.weight.data.copy_(torch.from_numpy(vec_embed))
+
         self.lstm = nn.LSTM(embedding_dim,
                             hidden_dim,
                             num_layers=n_layers,
@@ -285,7 +453,7 @@ class EmbeddingLSTMModel(nn.Module):
                             dropout=(dropout if n_layers > 1 else 0))
         self.fc1 = nn.Linear(self.pre_output_dim, self.pre_output_dim)
         self.bn = nn.BatchNorm1d(self.pre_output_dim)
-        self.relu = nn.ReLU(inplace=True)
+        self.leaky_relu = nn.LeakyReLU(0.1, inplace=True)
         self.dropout = nn.Dropout(dropout)
         self.fc2 = nn.Linear(self.pre_output_dim, output_dim)
 
@@ -316,7 +484,7 @@ class EmbeddingLSTMModel(nn.Module):
 
         # hidden: [batch_size, hidden_dim * num_directions]
         # hidden = self.dropout(hidden)
-        pre_output = self.relu(self.bn(self.fc1(hidden)))
+        pre_output = self.leaky_relu(self.bn(self.fc1(hidden)))
         pre_output = self.dropout(pre_output)
         output = self.fc2(pre_output)
         # return: [batch_size, output_dim]
@@ -327,8 +495,7 @@ class WordAVGModel(nn.Module):
     def __init__(self, vocab_size, embedding_dim, output_dim, dropout=0.5):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.fc1 = nn.Linear(embedding_dim,
-                             int((embedding_dim + output_dim) / 2))
+        self.fc1 = nn.Linear(embedding_dim, int((embedding_dim + output_dim) / 2))
         self.fc2 = nn.Linear(int((embedding_dim + output_dim) / 2), output_dim)
         self.dropout = nn.Dropout(dropout)
 
@@ -336,9 +503,7 @@ class WordAVGModel(nn.Module):
 
     def forward(self, text):
         embedded = self.embedding(text.long().to('cuda'))  # [batch_size,seq_len,emb_dim]
-        pooled = F.avg_pool2d(
-            embedded,
-            (embedded.shape[1], 1)).squeeze()  # batch_size, embed_size
+        pooled = F.avg_pool2d(embedded, (embedded.shape[1], 1)).squeeze()  # batch_size, embed_size
         output = self.dropout(self.fc1(pooled))
         return self.fc2(output)
 

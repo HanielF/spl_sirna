@@ -13,7 +13,11 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from collections import Counter
 import torch.utils.data as tud
+from spl_sirna import sirna_util
+import torch
 
+SEED = 1234
+np.random.seed(1234)
 
 def char_remove(data, chr_list=None):
     '''
@@ -406,7 +410,7 @@ class EmbeddedTextDataset(tud.Dataset):
 
 
 class Word2VecDataset(tud.Dataset):
-    def __init__(self, text, word_to_idx, idx_to_word, word_freqs, C, K, MOTIF):
+    def __init__(self, text, word_to_idx, idx_to_word, word_freqs, C=1, K=1, MOTIF=1):
         '''
         Desc：
             word2vec模型数据集构建函数
@@ -422,11 +426,12 @@ class Word2VecDataset(tud.Dataset):
         super(Word2VecDataset, self).__init__()
         self.text_encoded = sirna_util.get_seq_motif(text, motif=MOTIF)[0]
         self.text_encoded = torch.Tensor(self.text_encoded).long()
+
         self.word_to_idx = word_to_idx
         self.idx_to_word = idx_to_word
         self.C = C
         self.K = K
-        self.MOTIF = MOTIF
+
         self.word_freqs = torch.Tensor(word_freqs)
         self.center_sample, self.pos_sample, self.neg_sample = self.get_sample(
             self.text_encoded)
