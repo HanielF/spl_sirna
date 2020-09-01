@@ -316,6 +316,7 @@ class AttenLSTMModel(nn.Module):
                  bidirectional=False,
                  dropout=0,
                  avg_hidden=True,
+                 padding_idx=None,
                  vector_path=None,
                  attention_method=None,
                  save_energy=False,
