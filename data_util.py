@@ -294,11 +294,11 @@ class EmbeddedTextDataset(tud.Dataset):
     def __init__(self, xdata, ydata, word_to_idx=None, idx_to_word=None, max_vocab_size=None, encode_label=False):
         '''
         Desc：
-            对文本数据进行情感分类或者其他预测任务时，进行通用的Word Embedding编码，并将数据封装成Dataset
+            对文本数据进行情感分类或者其他预测任务时，进行通用的Word Embedding编码，并将数据封装成Dataset，不同长度的使用pad补充为0
         Args：
             xdata: ndarray(N,  ) -- 所有的数据，字符串
             ydata: ndarray -- 可能存在的对应目标值，如positive和negative的情感标签
-            word_to_idx: dict  --  可选的word到idx的对应关系字典
+            word_to_idx: dict  --  可选的word到idx的对应关系字典，若使用padding，则生成word_to_idx的时候，0需要是padding，不可以是其他的，不然会把其他字符转化为padding
             idx_to_word: list/ndarray  --  可选的idx到word的对应关系列表
                                           若不存在word_to_idx和idx_to_word，则会自动生成
             max_vocab_size: int  --  最大的字典长度
