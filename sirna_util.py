@@ -15,12 +15,13 @@ import torch.utils.data as tud
 from spl_sirna import data_util
 
 
-def get_idx_base(motif=1):
+def get_idx_base(motif=1, padding=False):
     '''
     Desc：
         获取siRNA的motif和对应编码的下标，用于词向量编码，每次调用参数相同，则结果相同
     Args：
         motif(int/list/ndarray) -- 1，2...，可以是单个的motif，也可以是一个列表一起编码
+        padding(bool) -- 是否使用padding，设置为P，index为0
     Returns：
         idx_to_base(list), base_to_idx(dict) -- 词和下标的相互转换
     '''
@@ -54,10 +55,14 @@ def get_idx_base(motif=1):
     if type(motif) in [list, np.ndarray]:
         for m in motif:
             res.extend(single_motif[m - 1])
+        if padding:
+            res.insert(0, 'P')
         idx_to_base = [base for base in res]
         base_to_idx = {base: i for i, base in enumerate(idx_to_base)}
     else:
-        idx_to_base = [base for base in single_motif[motif - 1]]
+        if padding:
+            res = single_motif[motif - 1].insert(0, 'P')
+        idx_to_base = [base for base in res]
         base_to_idx = {base: i for i, base in enumerate(idx_to_base)}
     return idx_to_base, base_to_idx
 
@@ -83,8 +88,9 @@ def idx_to_seq(seqs, motif=1):
     if type(seqs) not in [list, np.ndarray, torch.tensor, torch.Tensor]:
         print(type(seqs))
         raise TypeError("seqs 类型只支持list, ndarray和tensor")
+
     # 把维度扩充为2维
-    if len(seqs.shape) == 1 :
+    if len(seqs.shape) == 1:
         if type(seqs) == np.ndarray:
             seqs = np.expand_dims(seqs, axis=0)
         elif type(seqs) == torch.tensor:
@@ -132,9 +138,9 @@ def get_seq_motif(seqs, motif=1):
 
     # 从小到大循环得到所有的motif
     if type(motif) in [list, np.ndarray]:
-        nlist = np.array(motif)-1
+        nlist = np.array(motif) - 1
     elif type(motif) == int:
-        nlist = [motif-1]
+        nlist = [motif - 1]
     for n in nlist:
         seq_motif = np.empty((seqs.shape[0], len(seqs[0]) - n), dtype=int)
         for i in range(seqs.shape[0]):
@@ -170,7 +176,12 @@ def filter_sirna(data=None):
     data = data.str.upper()
 
     # 去掉所有空格,5'和3',r-和d-等无用字符
-    chr_list = [' ', '5', '3', "'", "’", "′", "`", "[", "]", "r", "D", "d", chr(65313), chr(65319), chr(65333), "(", ")", "-", "–", '"', 'N', 'n', 'v', 'V']
+    chr_list = [
+        ' ', '5', '3', "'", "’", "′", "`", "[", "]", "r", "D", "d",
+        chr(65313),
+        chr(65319),
+        chr(65333), "(", ")", "-", "–", '"', 'N', 'n', 'v', 'V'
+    ]
     data = data_util.char_remove(data, chr_list)
 
     seq_len = data.str.len()
