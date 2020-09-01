@@ -39,7 +39,7 @@ def get_idx_base(motif=1, padding=False):
     vocab = ['A', 'G', 'U', 'C', 'T']
     res = []
     tmp_res = vocab.copy()
-    single_motif = [vocab]
+    single_motif = [vocab.copy()]
 
     # 对多维motif进行处理
     while (max_motif > 1):
@@ -60,8 +60,9 @@ def get_idx_base(motif=1, padding=False):
         idx_to_base = [base for base in res]
         base_to_idx = {base: i for i, base in enumerate(idx_to_base)}
     else:
+        res = single_motif[motif - 1].copy()
         if padding:
-            res = single_motif[motif - 1].insert(0, 'P')
+            res.insert(0, 'P')
         idx_to_base = [base for base in res]
         base_to_idx = {base: i for i, base in enumerate(idx_to_base)}
     return idx_to_base, base_to_idx
@@ -187,4 +188,3 @@ def filter_sirna(data=None):
     seq_len = data.str.len()
     sirna = data[seq_len == 21]
     return sirna.values
-
