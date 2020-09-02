@@ -34,10 +34,14 @@ class Word2vecModel(nn.Module):
         self.embed_size = embed_size
 
         initrange = 0.5 / self.embed_size
-        self.out_embed = nn.Embedding(self.vocab_size, self.embed_size, sparse=False)
+        self.out_embed = nn.Embedding(self.vocab_size,
+                                      self.embed_size,
+                                      sparse=False)
         self.out_embed.weight.data.uniform_(-initrange, initrange)
 
-        self.in_embed = nn.Embedding(self.vocab_size, self.embed_size, sparse=False)
+        self.in_embed = nn.Embedding(self.vocab_size,
+                                     self.embed_size,
+                                     sparse=False)
         self.in_embed.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, input_labels, pos_labels, neg_labels):
@@ -49,12 +53,18 @@ class Word2vecModel(nn.Module):
         '''
         batch_size = input_labels.size(0)
 
-        input_embedding = self.in_embed(input_labels)  # B * embed_size
-        pos_embedding = self.out_embed(pos_labels)  # B * (2*C) * embed_size
-        neg_embedding = self.out_embed(neg_labels)  # B * (2*C * K) * embed_size
+        # B * embed_size
+        input_embedding = self.in_embed(input_labels)
+        # B * (2*C) * embed_size
+        pos_embedding = self.out_embed(pos_labels)
+        # B * (2*C * K) * embed_size
+        neg_embedding = self.out_embed(neg_labels)
 
-        log_pos = torch.bmm(pos_embedding, input_embedding.unsqueeze(2)).squeeze()  # B * (2*C)
-        log_neg = torch.bmm(neg_embedding, -input_embedding.unsqueeze(2)).squeeze()  # B * (2*C*K)
+        log_pos = torch.bmm(
+            pos_embedding, input_embedding.unsqueeze(2)).squeeze()  # B * (2*C)
+        log_neg = torch.bmm(
+            neg_embedding,
+            -input_embedding.unsqueeze(2)).squeeze()  # B * (2*C*K)
 
         # 对loss平均处理
         log_pos = F.logsigmoid(log_pos).sum(1) / log_pos.shape[1]
@@ -156,7 +166,8 @@ class MultiMotifLSTMModel(nn.Module):
         self.fc3 = nn.Linear(self.motif_num, output_dim)
 
         self.bn4 = nn.BatchNorm1d(self.pre_output_dim * self.motif_num)
-        self.fc4 = nn.Linear(self.pre_output_dim * self.motif_num, self.pre_output_dim)
+        self.fc4 = nn.Linear(self.pre_output_dim * self.motif_num,
+                             self.pre_output_dim)
         self.bn5 = nn.BatchNorm1d(self.pre_output_dim)
         self.fc5 = nn.Linear(self.pre_output_dim, output_dim)
 
@@ -176,7 +187,8 @@ class MultiMotifLSTMModel(nn.Module):
             output: tensor(batch_size, output_dim=1) -- Predicted value
         '''
         seq = seq.long().to(self.device)
-        embed_seq_1 = self.dropout(self.input_embed_1(seq))  # [batch_size, seq_size, embed_size]
+        # [batch_size, seq_size, embed_size]
+        embed_seq_1 = self.dropout(self.input_embed_1(seq))
         seqs = idx_to_seq(seq, self.motif)
         seq_motif1 = get_seq_motif(seqs, self.motif[1])[0]
         seq_motif2 = get_seq_motif(seqs, self.motif[2])[0]
@@ -267,7 +279,8 @@ class AttentionModel(nn.Module):
         elif self.method == 'concat':
             self.atten = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
             self.tanh = nn.Tanh()
-            self.other = nn.Parameter(torch.FloatTensor(1, self.hidden_dim))  # parameter会在反向传播时自动更新
+            # parameter会在反向传播时自动更新
+            self.other = nn.Parameter(torch.FloatTensor(1, self.hidden_dim))
 
     def forward(self, hidden, encoder_outputs):
         '''
@@ -279,11 +292,14 @@ class AttentionModel(nn.Module):
         Returns：
             energy: (seq_len, batch_size)  --  返回每个hidden对应的权重
         '''
-        batch_size, seq_len = encoder_outputs.shape[1], encoder_outputs.shape[0]
-        energy = Variable(torch.zeros(seq_len, batch_size)).to(self.device)  # (seq len, batch_size)
+        batch_size, seq_len = encoder_outputs.shape[1], encoder_outputs.shape[
+            0]
+        # shape (seq len, batch_size)
+        energy = Variable(torch.zeros(seq_len, batch_size)).to(self.device)
         for i in range(seq_len):
             energy[i] = self.score(hidden, encoder_outputs[i])
-        return F.softmax(energy, dim=0).transpose(0, 1).unsqueeze(1)  #(batch size, 1, seq len)
+        return F.softmax(energy, dim=0).transpose(0, 1).unsqueeze(
+            1)  #(batch size, 1, seq len)
 
     def score(self, hidden, encoder_output):
         '''
@@ -298,10 +314,13 @@ class AttentionModel(nn.Module):
         if self.method == 'dot':
             energy = torch.sum(hidden * encoder_output, axis=1)  # (batchsize,)
         elif self.method == 'general':
-            energy = self.atten(encoder_output)  # (batch size, hidden_dim*numdir)
+            # (batch size, hidden_dim*numdir)
+            energy = self.atten(encoder_output)
             energy = torch.sum(hidden * energy, axis=1)
         elif self.method == 'concat':
-            energy = self.tanh(self.atten(torch.cat((hidden, encoder_output), axis=1)))  # (batch size, hidden dim)
+            # (batch size, hidden dim)
+            energy = self.tanh(
+                self.atten(torch.cat((hidden, encoder_output), axis=1)))
             energy = torch.sum(energy * self.other, axis=1)
         return energy  # (batch size, )
 
@@ -346,8 +365,9 @@ class AttenLSTMModel(nn.Module):
             self.input_embed.weight.data.copy_(torch.from_numpy(vec_embed))
 
         self.attention_method = attention_method
-        self.attention = AttentionModel(attention_method, hidden_dim, self.bidirectional,
-                                        self.device)  # (seq len, batch size)
+        # (seq len, batch size)
+        self.attention = AttentionModel(attention_method, hidden_dim,
+                                        self.bidirectional, self.device)
         # self.energies = list()
         self.save_energy = save_energy
 
@@ -390,8 +410,10 @@ class AttenLSTMModel(nn.Module):
 
         # hidden: [batch_size, hidden_dim * num_directions]
         if self.attention_method is not None:
-            encoder_outputs = lstm_output.transpose(0, 1)  # [seq_len, batch_size, hidden_dim*num_dirs]
-            energy = self.attention(hidden, encoder_outputs)  # [batch_size, 1, seq_len]
+            encoder_outputs = lstm_output.transpose(
+                0, 1)  # [seq_len, batch_size, hidden_dim*num_dirs]
+            energy = self.attention(
+                hidden, encoder_outputs)  # [batch_size, 1, seq_len]
             # self.energies.append(energy)
             # context: #[batch_size, hidden_dim*numdirs]=[batch_size, 1, seq_len] · [batch_size, seq_len, hidden_dim*numdirs]
             context = energy.bmm(encoder_outputs.transpose(0, 1)).squeeze()
@@ -444,14 +466,17 @@ class AttenPadLSTMModel(nn.Module):
         self.pre_output_dim = hidden_dim * 2 if self.bidirectional else hidden_dim
         self.device = device
 
-        self.input_embed = nn.Embedding(vocab_size, embedding_dim, padding_idx=pad_idx)
+        self.input_embed = nn.Embedding(vocab_size,
+                                        embedding_dim,
+                                        padding_idx=pad_idx)
         if vector_path is not None:
             vec_embed = np.load(vector_path)
             self.input_embed.weight.data.copy_(torch.from_numpy(vec_embed))
 
         self.attention_method = attention_method
-        self.attention = AttentionModel(attention_method, hidden_dim, self.bidirectional,
-                                        self.device)  # (seq len, batch size)
+        # (seq len, batch size)
+        self.attention = AttentionModel(attention_method, hidden_dim,
+                                        self.bidirectional, self.device)
         # self.energies = list()
         self.save_energy = save_energy
 
@@ -485,16 +510,21 @@ class AttenPadLSTMModel(nn.Module):
         seq = seq.long().to(self.device)
         embed_seq = self.dropout(self.input_embed(seq))
 
-        embed_packed = nn_utils.rnn.pack_padded_sequence(embed_seq, seq_lens, batch_first=True, enforce_sorted=False)
+        embed_packed = nn_utils.rnn.pack_padded_sequence(embed_seq,
+                                                         seq_lens,
+                                                         batch_first=True,
+                                                         enforce_sorted=False)
         output_packed, (hidden, cell_state) = self.lstm(embed_packed)
 
         #lstm_output: [batch size, seq_len, hid dim * num directions]
         #hidden, cell: [num layers * num directions, batch size, hidden_dim]
-        lstm_output, length = nn_utils.rnn.pad_packed_sequence(output_packed, batch_first=True, total_length=total_length)
+        lstm_output, length = nn_utils.rnn.pad_packed_sequence(
+            output_packed, batch_first=True, total_length=total_length)
 
         if self.avg_hidden:
             # get seq_lens with shape of [batch_size, hidden_dim] to torch.div
-            div_val = seq_lens.reshape(2, 1).repeat(1, hidden.shape[-1]).float()
+            div_val = seq_lens.reshape(2, 1).repeat(1,
+                                                    hidden.shape[-1]).float()
             hidden = torch.div(torch.sum(lstm_output, 1), div_val)
         else:
             if self.bidirectional:
@@ -505,8 +535,10 @@ class AttenPadLSTMModel(nn.Module):
 
         # hidden: [batch_size, hidden_dim * num_directions]
         if self.attention_method is not None:
-            encoder_outputs = lstm_output.transpose(0, 1)  # [seq_len, batch_size, hidden_dim*num_dirs]
-            energy = self.attention(hidden, encoder_outputs)  # [batch_size, 1, seq_len]
+            encoder_outputs = lstm_output.transpose(
+                0, 1)  # [seq_len, batch_size, hidden_dim*num_dirs]
+            energy = self.attention(
+                hidden, encoder_outputs)  # [batch_size, 1, seq_len]
             # self.energies.append(energy)
             # context: #[batch_size, hidden_dim*numdirs]=[batch_size, 1, seq_len] · [batch_size, seq_len, hidden_dim*numdirs]
             context = energy.bmm(encoder_outputs.transpose(0, 1)).squeeze()
@@ -611,15 +643,18 @@ class WordAVGModel(nn.Module):
     def __init__(self, vocab_size, embedding_dim, output_dim, dropout=0.5):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.fc1 = nn.Linear(embedding_dim, int((embedding_dim + output_dim) / 2))
+        self.fc1 = nn.Linear(embedding_dim,
+                             int((embedding_dim + output_dim) / 2))
         self.fc2 = nn.Linear(int((embedding_dim + output_dim) / 2), output_dim)
         self.dropout = nn.Dropout(dropout)
 
     ''' seq: [batch_size, seq_size]'''
 
     def forward(self, text):
-        embedded = self.embedding(text.long().to('cuda'))  # [batch_size,seq_len,emb_dim]
-        pooled = F.avg_pool2d(embedded, (embedded.shape[1], 1)).squeeze()  # batch_size, embed_size
+        # [batch_size,seq_len,emb_dim]
+        embedded = self.embedding(text.long().to('cuda'))
+        # batch_size, embed_size
+        pooled = F.avg_pool2d(embedded, (embedded.shape[1], 1)).squeeze()
         output = self.dropout(self.fc1(pooled))
         return self.fc2(output)
 
