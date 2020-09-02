@@ -56,13 +56,13 @@ def get_idx_base(motif=1, padding=False):
         for m in motif:
             res.extend(single_motif[m - 1])
         if padding:
-            res.insert(0, 'P')
+            res.insert(0, '<pad>')
         idx_to_base = [base for base in res]
         base_to_idx = {base: i for i, base in enumerate(idx_to_base)}
     else:
         res = single_motif[motif - 1].copy()
         if padding:
-            res.insert(0, 'P')
+            res.insert(0, '<pad>')
         idx_to_base = [base for base in res]
         base_to_idx = {base: i for i, base in enumerate(idx_to_base)}
     return idx_to_base, base_to_idx
