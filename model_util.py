@@ -335,7 +335,6 @@ class AttenLSTMModel(nn.Module):
                  bidirectional=False,
                  dropout=0,
                  avg_hidden=True,
-                 padding_idx=None,
                  vector_path=None,
                  attention_method=None,
                  save_energy=False,
@@ -365,7 +364,6 @@ class AttenLSTMModel(nn.Module):
             self.input_embed.weight.data.copy_(torch.from_numpy(vec_embed))
 
         self.attention_method = attention_method
-        # (seq len, batch size)
         self.attention = AttentionModel(attention_method, hidden_dim,
                                         self.bidirectional, self.device)
         # self.energies = list()
@@ -410,10 +408,10 @@ class AttenLSTMModel(nn.Module):
 
         # hidden: [batch_size, hidden_dim * num_directions]
         if self.attention_method is not None:
-            encoder_outputs = lstm_output.transpose(
-                0, 1)  # [seq_len, batch_size, hidden_dim*num_dirs]
-            energy = self.attention(
-                hidden, encoder_outputs)  # [batch_size, 1, seq_len]
+            # [seq_len, batch_size, hidden_dim*num_dirs]
+            encoder_outputs = lstm_output.transpose(0, 1)
+            # [batch_size, 1, seq_len]
+            energy = self.attention(hidden, encoder_outputs)
             # self.energies.append(energy)
             # context: #[batch_size, hidden_dim*numdirs]=[batch_size, 1, seq_len] · [batch_size, seq_len, hidden_dim*numdirs]
             context = energy.bmm(encoder_outputs.transpose(0, 1)).squeeze()
@@ -535,10 +533,10 @@ class AttenPadLSTMModel(nn.Module):
 
         # hidden: [batch_size, hidden_dim * num_directions]
         if self.attention_method is not None:
-            encoder_outputs = lstm_output.transpose(
-                0, 1)  # [seq_len, batch_size, hidden_dim*num_dirs]
-            energy = self.attention(
-                hidden, encoder_outputs)  # [batch_size, 1, seq_len]
+            # [seq_len, batch_size, hidden_dim*num_dirs]
+            encoder_outputs = lstm_output.transpose(0, 1)
+            # [batch_size, 1, seq_len]
+            energy = self.attention(hidden, encoder_outputs)
             # self.energies.append(energy)
             # context: #[batch_size, hidden_dim*numdirs]=[batch_size, 1, seq_len] · [batch_size, seq_len, hidden_dim*numdirs]
             context = energy.bmm(encoder_outputs.transpose(0, 1)).squeeze()
