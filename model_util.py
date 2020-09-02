@@ -410,6 +410,121 @@ class AttenLSTMModel(nn.Module):
         return output
 
 
+class AttenPadLSTMModel(nn.Module):
+    def __init__(self,
+                 vocab_size,
+                 embedding_dim,
+                 hidden_dim,
+                 output_dim,
+                 n_layers=1,
+                 bidirectional=False,
+                 dropout=0,
+                 avg_hidden=True,
+                 pad_idx=None,
+                 vector_path=None,
+                 attention_method=None,
+                 save_energy=False,
+                 device='cpu'):
+        '''
+        Desc：
+            初始化单一输入LSTM模型，定义一些网络层级
+        Args：
+            vocab_size: int -- 5，即[A, G, U, C, T]
+            embedding_dim: int -- 词向量的维度
+            hidden_dim: int -- LSTM层hidden的维度
+            output_dim: int -- 输出的维度
+            n_layers: int -- LSTM的层数
+            bidirectional: bool -- LSTM是否双向
+            dropout: float -- drouput概率，使用在LSTM和Dropout层
+            avg_hidden: bool -- 是否将hidden的平均值作为结果输出，如果是False，则使用最后一个Hidden作为LSTM的输出
+        '''
+        super(AttenLSTMModel, self).__init__()
+        self.bidirectional = bidirectional
+        self.avg_hidden = avg_hidden
+        self.pre_output_dim = hidden_dim * 2 if self.bidirectional else hidden_dim
+        self.device = device
+
+        self.input_embed = nn.Embedding(vocab_size, embedding_dim, padding_idx=pad_idx)
+        if vector_path is not None:
+            vec_embed = np.load(vector_path)
+            self.input_embed.weight.data.copy_(torch.from_numpy(vec_embed))
+
+        self.attention_method = attention_method
+        self.attention = AttentionModel(attention_method, hidden_dim, self.bidirectional,
+                                        self.device)  # (seq len, batch size)
+        # self.energies = list()
+        self.save_energy = save_energy
+
+        self.lstm = nn.LSTM(embedding_dim,
+                            hidden_dim,
+                            num_layers=n_layers,
+                            batch_first=True,
+                            bidirectional=bidirectional,
+                            dropout=(dropout if n_layers > 1 else 0))
+        self.fc1 = nn.Linear(self.pre_output_dim, self.pre_output_dim)
+        self.bn = nn.BatchNorm1d(self.pre_output_dim)
+        self.leaky_relu = nn.LeakyReLU(0.1, inplace=True)
+        self.dropout = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(self.pre_output_dim, output_dim)
+
+    def forward(self, seq):
+        '''
+        Desc：
+            Forward pass
+        Args：
+            seq: tensor(batch_size, seq_size) -- 输入的序列
+        Returns：
+            output: tensor(batch_size, output_dim=1) -- Predicted value
+        '''
+        # get sequence length and total length
+        mask = torch.gt(seq, 0)
+        seq_lens = torch.sum(mask, axis=1)
+        total_length = seq.shape[1]
+
+        # embed_seq: [batch_size, seq_size, embed_size]
+        seq = seq.long().to(self.device)
+        embed_seq = self.dropout(self.input_embed(seq))
+
+        embed_packed = nn_utils.rnn.pack_padded_sequence(embed_seq, seq_lens, batch_first=True, enforce_sorted=False)
+        output_packed, (hidden, cell_state) = self.lstm(embed_packed)
+
+        #lstm_output: [batch size, seq_len, hid dim * num directions]
+        #hidden, cell: [num layers * num directions, batch size, hidden_dim]
+        lstm_output, length = nn_utils.rnn.pad_packed_sequence(output_packed, batch_first=True, total_length=total_length)
+
+        if self.avg_hidden:
+            # get seq_lens with shape of [batch_size, hidden_dim] to torch.div
+            div_val = seq_lens.reshape(2, 1).repeat(1, hidden.shape[-1]).float()
+            hidden = torch.div(torch.sum(lstm_output, 1), div_val)
+        else:
+            if self.bidirectional:
+                hidden = torch.cat((hidden[-2, :, :], hidden[-1, :, :]), dim=1)
+            else:
+                # hidden = self.dropout(hidden[-1, :, :])
+                hidden = hidden[-1, :, :]
+
+        # hidden: [batch_size, hidden_dim * num_directions]
+        if self.attention_method is not None:
+            encoder_outputs = lstm_output.transpose(0, 1)  # [seq_len, batch_size, hidden_dim*num_dirs]
+            energy = self.attention(hidden, encoder_outputs)  # [batch_size, 1, seq_len]
+            # self.energies.append(energy)
+            # context: #[batch_size, hidden_dim*numdirs]=[batch_size, 1, seq_len] · [batch_size, seq_len, hidden_dim*numdirs]
+            context = energy.bmm(encoder_outputs.transpose(0, 1)).squeeze()
+        else:
+            context = hidden
+
+        # print('energy:\n{}'.format(energy[0]))
+        pre_output = self.leaky_relu(self.bn(self.fc1(context)))
+        pre_output = self.dropout(pre_output)
+        output = self.fc2(pre_output)
+        # return: [batch_size, output_dim]
+        if self.save_energy:
+            output = (output, energy)
+        else:
+            output = (output, output)
+        return output
+
+
 class EmbeddingLSTMModel(nn.Module):
     def __init__(self,
                  vocab_size,
