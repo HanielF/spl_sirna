@@ -111,7 +111,8 @@ def make_scatter(xdata,
     # 计算相关系数
     if pcc:
         r, _ = pearsonr(xdata, ydata)
-        plt.text(pos_x, ymin + (ymax - ymin) * 0.05, 'PCC: {:.3f}'.format(r), font2)
+        plt.text(pos_x, ymin + (ymax - ymin) * 0.05, 'PCC: {:.3f}'.format(r),
+                 font2)
 
     # 绘制label和title
     plt.xlabel(xlabel, font1)
@@ -124,7 +125,12 @@ def make_scatter(xdata,
     plt.show()
 
 
-def make_plot(data, labels=None, titles=None, filename=None, show=False, xtick_space=1):
+def make_plot(data,
+              labels=None,
+              titles=None,
+              filename=None,
+              show=False,
+              xtick_space=1):
     '''
     Desc：
         绘制折线图，可以在一个画布中绘制多张图，并可以保存在本地
@@ -172,7 +178,8 @@ def make_plot(data, labels=None, titles=None, filename=None, show=False, xtick_s
         if xtick_space == 1:
             tickNum = len(fig_data[0]) + 1
         else:
-            tickNum = (len(fig_data[0]) - len(fig_data[0]) % xtick_space) // xtick_space + 1
+            tickNum = (len(fig_data[0]) -
+                       len(fig_data[0]) % xtick_space) // xtick_space + 1
         xtick = np.linspace(xmin, xmax, tickNum, dtype=int).tolist()
         ytick = np.linspace(ymin, ymax, 11).tolist()
 

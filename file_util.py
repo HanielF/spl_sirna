@@ -12,7 +12,13 @@ import numpy as np
 import sys
 import os
 
-def get_data_from_file(fpath, xname=None, yname=None, upper=False, dropna=True, encode='utf-8'):
+
+def get_data_from_file(fpath,
+                       xname=None,
+                       yname=None,
+                       upper=False,
+                       dropna=True,
+                       encode='utf-8'):
     '''
     Desc：
         使用于大部分情况的Excel文件数据提取，从csv/excel(xls,xlsx,xlsm..)/txt格式的文件中提取训练数据和可能存在的label
@@ -70,7 +76,13 @@ def get_data_from_file(fpath, xname=None, yname=None, upper=False, dropna=True, 
     return x, y
 
 
-def write_csv_excel(data, fpath, columns=None, header=False, sheet_name=None, nan_rep='NULL', encoding=None):
+def write_csv_excel(data,
+                    fpath,
+                    columns=None,
+                    header=False,
+                    sheet_name=None,
+                    nan_rep='NULL',
+                    encoding=None):
     '''
     Desc：
         将序列数据写入csv文件，默认不写入DataFrame的index和header
@@ -95,12 +107,28 @@ def write_csv_excel(data, fpath, columns=None, header=False, sheet_name=None, na
     file_type = fpath.split('.')[-1]
 
     if file_type == 'csv':
-        data.to_csv(fpath, columns=columns, index=False, header=header, na_rep=nan_rep, encoding=encoding)
+        data.to_csv(fpath,
+                    columns=columns,
+                    index=False,
+                    header=header,
+                    na_rep=nan_rep,
+                    encoding=encoding)
     elif file_type in ['xls', 'xlsx', 'xlsm', 'xlsb', 'odf']:
         writer = pd.ExcelWriter(fpath)
-        data.to_excel(writer, sheet_name=sheet_name, na_rep=nan_rep, columns=columns, header=header, index=False, encoding=encoding)
+        data.to_excel(writer,
+                      sheet_name=sheet_name,
+                      na_rep=nan_rep,
+                      columns=columns,
+                      header=header,
+                      index=False,
+                      encoding=encoding)
     elif file_type == 'txt':
-        data.to_csv(fpath, sep=' ', columns=columns, index=False, header=header, na_rep=nan_rep, encoding=encoding)
+        data.to_csv(fpath,
+                    sep=' ',
+                    columns=columns,
+                    index=False,
+                    header=header,
+                    na_rep=nan_rep,
+                    encoding=encoding)
     else:
         raise ValueError("写入文件只支持csv, txt, xls, xlsx, xlsm, xlsb, odf")
-

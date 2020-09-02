@@ -19,6 +19,7 @@ import torch
 SEED = 1234
 np.random.seed(1234)
 
+
 def char_remove(data, chr_list=None):
     '''
     Desc：
@@ -74,7 +75,8 @@ def copy_part_of_data(xdata, ydata, yrange=[], copytimes=1):
         x, y: ndarray  --  扩增后的数据，y是一维数据
     '''
     # 异常处理
-    if type(xdata) not in [np.ndarray, list] or type(ydata) not in [np.ndarray, list]:
+    if type(xdata) not in [np.ndarray, list
+                           ] or type(ydata) not in [np.ndarray, list]:
         raise Exception("xdata和ydata类型需要为list或numpy.ndarray")
     if len(xdata) == 0:
         raise Exception("xdata不能为空")
@@ -124,7 +126,8 @@ def truncate_part_of_data(xdata, ydata, yrange=[]):
         x, y: ndarray  --  截断后的数据，y是一维数据
     '''
     # 异常处理
-    if type(xdata) not in [np.ndarray, list] or type(ydata) not in [np.ndarray, list]:
+    if type(xdata) not in [np.ndarray, list
+                           ] or type(ydata) not in [np.ndarray, list]:
         raise Exception("xdata和ydata类型需要为numpy.ndarray")
     if len(xdata) == 0:
         raise Exception("xdata不能为空")
@@ -243,7 +246,12 @@ def normalize_data(data, axis=None):
     return data.tolist() if listFlag else data
 
 
-def split_dataset(xdata, ydata, valid_size=0.2, test_size=0.2, shuffle=True, random_state=None):
+def split_dataset(xdata,
+                  ydata,
+                  valid_size=0.2,
+                  test_size=0.2,
+                  shuffle=True,
+                  random_state=None):
     '''
     Desc：
         对数据集进行划分，分为训练集、验证集、测试集
@@ -281,17 +289,33 @@ def split_dataset(xdata, ydata, valid_size=0.2, test_size=0.2, shuffle=True, ran
     if test_size == 0:
         x_train, y_train = xdata, ydata
     else:
-        x_train, x_test, y_train, y_test = train_test_split(xdata, ydata, test_size=test_size, shuffle=shuffle, random_state=random_state)
+        x_train, x_test, y_train, y_test = train_test_split(
+            xdata,
+            ydata,
+            test_size=test_size,
+            shuffle=shuffle,
+            random_state=random_state)
 
     # 划分出训练集和验证集
     if valid_size != 0:
         valid_size = valid_size / (1 - test_size)
-        x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=valid_size, shuffle=shuffle, random_state=random_state)
+        x_train, x_val, y_train, y_val = train_test_split(
+            x_train,
+            y_train,
+            test_size=valid_size,
+            shuffle=shuffle,
+            random_state=random_state)
     return x_train, x_val, x_test, y_train, y_val, y_test
 
 
 class EmbeddedTextDataset(tud.Dataset):
-    def __init__(self, xdata, ydata, word_to_idx=None, idx_to_word=None, max_vocab_size=None, encode_label=False):
+    def __init__(self,
+                 xdata,
+                 ydata,
+                 word_to_idx=None,
+                 idx_to_word=None,
+                 max_vocab_size=None,
+                 encode_label=False):
         '''
         Desc：
             对文本数据进行情感分类或者其他预测任务时，进行通用的Word Embedding编码，并将数据封装成Dataset，不同长度的使用pad补充为0
@@ -318,7 +342,8 @@ class EmbeddedTextDataset(tud.Dataset):
 
         # 获取词汇和下标的互相对应关系
         if word_to_idx is None and idx_to_word is None:
-            self.idx_to_word, self.word_to_idx = self.get_vocab(xdata, vocab_size=max_vocab_size, use_unk=True, use_pad=True)
+            self.idx_to_word, self.word_to_idx = self.get_vocab(
+                xdata, vocab_size=max_vocab_size, use_unk=True, use_pad=True)
             # <pad>和<unk>标记的下标
             self.pad_idx = self.word_to_idx['<pad>']
             self.unk_idx = self.word_to_idx['<unk>']
@@ -338,13 +363,16 @@ class EmbeddedTextDataset(tud.Dataset):
 
         # label的词典
         if encode_label:
-            self.label_to_idx, self.idx_to_label = self.get_vocab(ydata, use_unk=False, use_pad=False)
+            self.label_to_idx, self.idx_to_label = self.get_vocab(
+                ydata, use_unk=False, use_pad=False)
         else:
-            self.label_to_idx, self.idx_to_label = self.get_vocab(ydata, use_unk=False, use_pad=False)
+            self.label_to_idx, self.idx_to_label = self.get_vocab(
+                ydata, use_unk=False, use_pad=False)
 
         # 对较短的句子进行补全
         self.max_length = max([len(x) for x in xdata])
-        self.encoded_data = np.zeros((xdata.shape[0], self.max_length), dtype=int)
+        self.encoded_data = np.zeros((xdata.shape[0], self.max_length),
+                                     dtype=int)
 
         # 对label编码
         if encode_label:
@@ -358,7 +386,8 @@ class EmbeddedTextDataset(tud.Dataset):
         for i in range(xdata.shape[0]):
             xlen = len(xdata[i])
             for j in range(self.max_length):
-                self.encoded_data[i][j] = self.word_to_idx["<pad>"] if j>=xlen else self.word_to_idx[xdata[i][j]]
+                self.encoded_data[i][j] = self.word_to_idx[
+                    "<pad>"] if j >= xlen else self.word_to_idx[xdata[i][j]]
 
     def __len__(self):
         '''
@@ -410,7 +439,14 @@ class EmbeddedTextDataset(tud.Dataset):
 
 
 class Word2VecDataset(tud.Dataset):
-    def __init__(self, text, word_to_idx, idx_to_word, word_freqs, C=1, K=1, MOTIF=1):
+    def __init__(self,
+                 text,
+                 word_to_idx,
+                 idx_to_word,
+                 word_freqs,
+                 C=1,
+                 K=1,
+                 MOTIF=1):
         '''
         Desc：
             word2vec模型数据集构建函数
@@ -487,7 +523,8 @@ class Word2VecDataset(tud.Dataset):
                                              self.K * pos_word.shape[0],
                                              True)  # 负采样
                 while len(neg_word) < 2 * self.C * self.K:  # 对缺少的数据填充
-                    neg_word = torch.cat((neg_word, neg_word))[:2 * self.C * self.K]
+                    neg_word = torch.cat(
+                        (neg_word, neg_word))[:2 * self.C * self.K]
 
                 pos_sample.append(pos_word)
                 neg_sample.append(neg_word)
@@ -510,7 +547,8 @@ class SeqDataset(tud.Dataset):
             seq_freq: torch.DoubleTensor
         '''
         super(SeqDataset, self).__init__()
-        self.seq_encoded = torch.empty((seqs.shape[0], len(seqs[0])), dtype=torch.int).long()
+        self.seq_encoded = torch.empty((seqs.shape[0], len(seqs[0])),
+                                       dtype=torch.int).long()
         for i in range(seqs.shape[0]):
             for j, bp in enumerate(seqs[i]):
                 self.seq_encoded[i][j] = base_to_idx[bp]
