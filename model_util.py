@@ -458,11 +458,12 @@ class AttenPadLSTMModel(nn.Module):
             dropout: float -- drouput概率，使用在LSTM和Dropout层
             avg_hidden: bool -- 是否将hidden的平均值作为结果输出，如果是False，则使用最后一个Hidden作为LSTM的输出
         '''
-        super(AttenLSTMModel, self).__init__()
+        super(AttenPadLSTMModel, self).__init__()
         self.bidirectional = bidirectional
         self.avg_hidden = avg_hidden
         self.pre_output_dim = hidden_dim * 2 if self.bidirectional else hidden_dim
         self.device = device
+        self.pad_idx = pad_idx
 
         self.input_embed = nn.Embedding(vocab_size,
                                         embedding_dim,
@@ -500,7 +501,7 @@ class AttenPadLSTMModel(nn.Module):
             output: tensor(batch_size, output_dim=1) -- Predicted value
         '''
         # get sequence length and total length
-        mask = torch.gt(seq, 0)
+        mask = torch.ne(seq, self.pad_idx)
         seq_lens = torch.sum(mask, axis=1)
         total_length = seq.shape[1]
 
@@ -508,7 +509,7 @@ class AttenPadLSTMModel(nn.Module):
         seq = seq.long().to(self.device)
         embed_seq = self.dropout(self.input_embed(seq))
 
-        embed_packed = nn_utils.rnn.pack_padded_sequence(embed_seq,
+        embed_packed = nn.utils.rnn.pack_padded_sequence(embed_seq,
                                                          seq_lens,
                                                          batch_first=True,
                                                          enforce_sorted=False)
@@ -516,7 +517,7 @@ class AttenPadLSTMModel(nn.Module):
 
         #lstm_output: [batch size, seq_len, hid dim * num directions]
         #hidden, cell: [num layers * num directions, batch size, hidden_dim]
-        lstm_output, length = nn_utils.rnn.pad_packed_sequence(
+        lstm_output, length = nn.utils.rnn.pad_packed_sequence(
             output_packed, batch_first=True, total_length=total_length)
 
         if self.avg_hidden:
