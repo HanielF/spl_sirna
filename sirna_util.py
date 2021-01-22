@@ -188,3 +188,39 @@ def filter_sirna(data=None):
     seq_len = data.str.len()
     sirna = data[seq_len == 21]
     return sirna.values
+
+def rna_pair_and_reverse(seqs):
+    '''pair rna sequences and reverse sequences
+
+    Args：
+    seq: [list, ndarray] -- input sequences
+    Returns：
+    res: [list, ndarray] -- output sequence
+    '''
+    map = {'A': 'U', 'G': 'C', 'C': 'G', 'U': 'A'}
+    res = seqs.copy()
+    for idx, seq in enumerate(seqs):
+        seq = seq.upper()
+        tmp = "".join([map[s] for s in seq])
+        res[idx] = tmp[::-1]
+    return res
+
+def antisense_to_sense_cdna(seqs):
+    '''transform antisense sequences to cdna sequences
+
+    Args：
+      seqs: [list, ndarray] -- antisense sequences
+    Returns：
+      res: [list, ndarray] -- cdna sequences
+    '''
+    map = {'A': 'T', 'G': 'C', 'C': 'G', 'U': 'A'}
+    res = seqs.copy()
+    for idx, seq in enumerate(seqs):
+        seq = seq.upper()
+        tmp = "".join([map[s] for s in seq])
+        res[idx] = tmp[::-1]
+    return res
+
+if __name__ == "__main__":
+    seq = "UCACGCCUGAGUCCUCACC"
+    print(antisense_to_sense_cdna([seq]))
