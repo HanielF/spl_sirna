@@ -13,7 +13,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from collections import Counter
 import torch.utils.data as tud
-from spl_sirna import sirna_util
+import sirna_util
 import torch
 
 SEED = 1234

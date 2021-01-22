@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data as tud
-from spl_sirna import data_util
+import data_util
 
 
 def get_idx_base(motif=1, padding=False):

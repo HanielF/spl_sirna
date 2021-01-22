@@ -13,7 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from spl_sirna.sirna_util import get_seq_motif, idx_to_seq
+from sirna_util import get_seq_motif, idx_to_seq
 
 USE_CUDA = torch.cuda.is_available()
 # DEVICE = torch.device('cuda' if USE_CUDA else 'cpu')
