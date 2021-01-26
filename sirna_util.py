@@ -12,6 +12,10 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data as tud
+
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import data_util
 
 
@@ -221,6 +225,29 @@ def antisense_to_sense_cdna(seqs):
         res[idx] = tmp[::-1]
     return res
 
+def get_target_pos(sirna, cdnas):
+    '''get sirna target index in cdna for each sequences
+
+    Args：
+      seqs: [list, ndarray] -- antisense sequences
+      cdna: [list, ndarray] -- cdna sequences
+    Returns：
+      res: [list, ndarray] -- position idx list
+    '''
+    if len(sirna) != len(cdnas):
+        raise ValueError("The shape of sirna and cdna should be the same")
+    res = []
+    target = antisense_to_sense_cdna(sirna)
+    for idx, tar in enumerate(target):
+        cur_cdna = cdnas[idx]
+        res.append(cur_cdna.find(tar))
+    return res
+
 if __name__ == "__main__":
-    seq = "UCACGCCUGAGUCCUCACC"
-    print(antisense_to_sense_cdna([seq]))
+    seq = ["CUAAUAUGUUAAUUGAUUU"]
+    cdna = ["CTTCCTTGTTTGGTCTGCTGTGGATCTGCCTTATTGCATATGCCATGCATCAGATAATGGATGCATCAGATAATGGTGTTAGACAAAGCTTCATTGTGAACAACCTAATGCATTTTAGAGAAACAATCTCATCACATTTTTTCTAGCCTTTCCTACATTTAAACTTGCTGTTGCCCAAATTATAATTTTTTAAATGTCTTTGGTGGGCTTCTGTTAATTCACATGACTTGAGCTTATAGCTATGTCTACTGCACAGATTGGGTAATGGAACACTAAACTTTTATACTTGAAAATGACAGCCTTAAATGCTCATATCAGTCACAAATCTAGGATGTACTGTCTTGTTGTATGTGAGCTTTGTAGAGATTTTTAAAAATATAAGCATCACCTTCCCATTGAAGAGTGGAGAGAGTCTACTGGATGACTGGCCAGGAACTTTCTCTCTGAATCGGACATTTGGATGTCTTCTTTCTTCCAAGAAATGGTGGTTCACATTAAAGTATCATGGCCTTATGTATGCTCAAATGGAATCTTATGTAACTTTCTTATTTAATTTTGGTCTGCTTATTTTTAGATAAAATTGAAAGGAATTGTATAAATCAATTAACATATTAGCTGAGTTG"]
+    # mrna = "".join(['U' if x == 'T' else x for x in cdna])
+    # target_rna = rna_pair_and_reverse(seq)
+    # print(antisense_to_sense_cdna([seq]))
+    print(get_target_pos(seq, cdna)[0])
+    print(cdna[0][596:596+19] == antisense_to_sense_cdna(seq)[0])

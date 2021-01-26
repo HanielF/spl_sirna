@@ -13,8 +13,11 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from collections import Counter
 import torch.utils.data as tud
-import sirna_util
 import torch
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sirna_util
 
 SEED = 1234
 np.random.seed(1234)
