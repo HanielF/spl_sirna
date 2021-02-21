@@ -225,6 +225,22 @@ def antisense_to_sense_cdna(seqs):
         res[idx] = tmp[::-1]
     return res
 
+def cdna_to_antisense(seqs):
+    '''transform cdna to antisense strand sequences
+
+    Args：
+      seqs: [list, ndarray] -- cdna sequences
+    Returns：
+      res: [list, ndarray] -- antisense strand sequences
+    '''
+    map = {'T': 'A', 'G': 'C', 'C': 'G', 'A': 'U'}
+    res = seqs.copy()
+    for idx, seq in enumerate(seqs):
+        seq = seq.upper()
+        tmp = "".join([map[s] for s in seq])
+        res[idx] = tmp[::-1]
+    return res
+
 def get_target_pos(sirna, cdnas):
     '''get sirna target index in cdna for each sequences
 
@@ -244,10 +260,11 @@ def get_target_pos(sirna, cdnas):
     return res
 
 if __name__ == "__main__":
-    seq = ["CUAAUAUGUUAAUUGAUUU"]
+    seq = ["CAAAAUUAUCCACUGUUUUUG"]
     cdna = ["CTTCCTTGTTTGGTCTGCTGTGGATCTGCCTTATTGCATATGCCATGCATCAGATAATGGATGCATCAGATAATGGTGTTAGACAAAGCTTCATTGTGAACAACCTAATGCATTTTAGAGAAACAATCTCATCACATTTTTTCTAGCCTTTCCTACATTTAAACTTGCTGTTGCCCAAATTATAATTTTTTAAATGTCTTTGGTGGGCTTCTGTTAATTCACATGACTTGAGCTTATAGCTATGTCTACTGCACAGATTGGGTAATGGAACACTAAACTTTTATACTTGAAAATGACAGCCTTAAATGCTCATATCAGTCACAAATCTAGGATGTACTGTCTTGTTGTATGTGAGCTTTGTAGAGATTTTTAAAAATATAAGCATCACCTTCCCATTGAAGAGTGGAGAGAGTCTACTGGATGACTGGCCAGGAACTTTCTCTCTGAATCGGACATTTGGATGTCTTCTTTCTTCCAAGAAATGGTGGTTCACATTAAAGTATCATGGCCTTATGTATGCTCAAATGGAATCTTATGTAACTTTCTTATTTAATTTTGGTCTGCTTATTTTTAGATAAAATTGAAAGGAATTGTATAAATCAATTAACATATTAGCTGAGTTG"]
     # mrna = "".join(['U' if x == 'T' else x for x in cdna])
     # target_rna = rna_pair_and_reverse(seq)
-    # print(antisense_to_sense_cdna([seq]))
-    print(get_target_pos(seq, cdna)[0])
-    print(cdna[0][596:596+19] == antisense_to_sense_cdna(seq)[0])
+    # print(cdna_to_antisense(seq))
+    print(antisense_to_sense_cdna(seq))
+    # print(get_target_pos(seq, cdna)[0])
+    # print(cdna[0][596:596+19] == antisense_to_sense_cdna(seq)[0])
