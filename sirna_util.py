@@ -193,7 +193,7 @@ def filter_sirna(data=None):
     sirna = data[seq_len == 21]
     return sirna.values
 
-def rna_pair_and_reverse(seqs):
+def rna_pair_and_reverse(seqs, reverse=True):
     '''pair rna sequences and reverse sequences
 
     Args：
@@ -206,7 +206,10 @@ def rna_pair_and_reverse(seqs):
     for idx, seq in enumerate(seqs):
         seq = seq.upper()
         tmp = "".join([map[s] for s in seq])
-        res[idx] = tmp[::-1]
+        if reverse:
+            res[idx] = tmp[::-1]
+        else:
+            res[idx] = tmp
     return res
 
 def antisense_to_sense_cdna(seqs):
