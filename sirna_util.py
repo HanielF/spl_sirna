@@ -18,6 +18,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import data_util
 
+from tqdm import tqdm
+from Bio import Entrez
+from Bio import SeqIO
 
 def get_idx_base(motif=1, padding=False):
     '''
@@ -193,6 +196,7 @@ def filter_sirna(data=None):
     sirna = data[seq_len == 21]
     return sirna.values
 
+
 def rna_pair_and_reverse(seqs, reverse=True):
     '''pair rna sequences and reverse sequences
 
@@ -212,6 +216,7 @@ def rna_pair_and_reverse(seqs, reverse=True):
             res[idx] = tmp
     return res
 
+
 def antisense_to_sense_cdna(seqs):
     '''transform antisense sequences to cdna sequences
 
@@ -228,6 +233,7 @@ def antisense_to_sense_cdna(seqs):
         res[idx] = tmp[::-1]
     return res
 
+
 def cdna_to_antisense(seqs):
     '''transform cdna to antisense strand sequences
 
@@ -243,6 +249,7 @@ def cdna_to_antisense(seqs):
         tmp = "".join([map[s] for s in seq])
         res[idx] = tmp[::-1]
     return res
+
 
 def get_target_pos(sirna, cdnas):
     '''get sirna target index in cdna for each sequences
@@ -261,6 +268,22 @@ def get_target_pos(sirna, cdnas):
         cur_cdna = cdnas[idx]
         res.append(cur_cdna.find(tar))
     return res
+
+
+def entrez_fetch_seq(id, batch_size=10):
+    '''Fetch Entrez results in batch and saved in Bio.records format
+    '''
+    seq_records = []
+    for idx in tqdm(range(0, input_data.shape[0], batch_size)):
+        record_ids = input_data[idx:idx + batch_size]
+
+        result_handle = Entrez.efetch(db="nucleotide", rettype="gb", id=record_ids)
+        seqRecord = SeqIO.parse(result_handle, format='gb')
+
+        # get records from GeneBankIterator
+        for idx, record in enumerate(seqRecord):
+            seq_records.append(record)
+    return seq_records
 
 if __name__ == "__main__":
     seq = ["CAAAAUUAUCCACUGUUUUUG"]
