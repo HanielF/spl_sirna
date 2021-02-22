@@ -270,12 +270,13 @@ def get_target_pos(sirna, cdnas):
     return res
 
 
-def entrez_fetch_seq(id, batch_size=10):
-    '''Fetch Entrez results in batch and saved in Bio.records format
+def entrez_fetch_seq(id, batch_size=10, temporary_save=False, save_format='fasta-2line'):
+    '''Fetch Entrez results in batch and saved in Bio.records format. If temporary_save is True, results will be saved in ./temp_sequences.fasta for temporary use.
     '''
-    seq_records = []
-    for idx in tqdm(range(0, input_data.shape[0], batch_size)):
-        record_ids = input_data[idx:idx + batch_size]
+    res = []
+    for idx in tqdm(range(0, len(id), batch_size)):
+        seq_records = []
+        record_ids = id[idx:idx + batch_size]
 
         result_handle = Entrez.efetch(db="nucleotide", rettype="gb", id=record_ids)
         seqRecord = SeqIO.parse(result_handle, format='gb')
@@ -283,7 +284,12 @@ def entrez_fetch_seq(id, batch_size=10):
         # get records from GeneBankIterator
         for idx, record in enumerate(seqRecord):
             seq_records.append(record)
-    return seq_records
+
+        if temporary_save:
+            with open('temp_sequences.fasta', 'a') as fout:
+                SeqIO.write(seq_records, fout, save_format)
+        res.extend(seq_records)
+    return res
 
 if __name__ == "__main__":
     seq = ["CAAAAUUAUCCACUGUUUUUG"]
