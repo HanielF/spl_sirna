@@ -10,8 +10,6 @@
 
 import numpy as np
 import pandas as pd
-import torch
-import torch.utils.data as tud
 
 import sys
 import os
@@ -85,6 +83,8 @@ def idx_to_seq(seqs, motif=1):
     Returns：
         res: ndarray(batch_size, ) -- 列表形式的字符串序列
     '''
+    import torch
+
     # 异常处理
     if type(motif) not in [int, list, np.ndarray]:
         raise TypeError("motif类型必须为整形、list或ndarray")
